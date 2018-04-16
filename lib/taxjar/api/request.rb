@@ -63,7 +63,8 @@ module Taxjar
         request[:host] = uri.host
 
         response = http.request(request)
-        response_body = symbolize_keys!(JSON.parse(response.body))
+        body = JSON.parse(response.body) rescue {}
+        response_body = symbolize_keys!(body)
         fail_or_return_response_body(response.code.to_i, response_body)
       end
 
