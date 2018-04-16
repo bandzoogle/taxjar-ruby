@@ -91,23 +91,6 @@ describe Taxjar::API::Request do
         subject = Taxjar::API::Request.new(client, :get, '/api_path', 'object', options)
         expect(subject.options).to eq(options)
       end
-
-      context 'timeout' do
-        it 'should initialize nil timeout if not set' do
-          client = Taxjar::Client.new(api_key: 'AK')
-          subject = Taxjar::API::Request.new(client, :get, '/api_path', 'object', {})
-
-          expect(subject.instance_variable_get(:@http_timeout)).to eq({write: nil, read: nil, connect: nil})
-        end
-
-        it 'should take a timeout option and set timeout for request' do
-          options = {timeout: 1}
-          client = Taxjar::Client.new(api_key: 'AK')
-          subject = Taxjar::API::Request.new(client, :get, '/api_path', 'object', options)
-
-          expect(subject.instance_variable_get(:@http_timeout)).to eq({write: 1, read: 1, connect: 1})
-        end
-      end
     end
 
   end
@@ -157,7 +140,8 @@ describe Taxjar::API::Request do
       context "when HTTP status is #{status}" do
         it "raises #{exception}" do
           stub_request(:get, "https://api.taxjar.com/api_path").
-            with(:headers => {'Authorization'=>'Bearer AK', 'Connection'=>'close',
+            with(:headers => {'Authorization'=>'Bearer AK',
+                              'Connection'=>'close',
                               'Host'=>'api.taxjar.com',
                               'User-Agent'=>"TaxjarRubyGem/#{Taxjar::Version.to_s}"}).
             to_return(:status => status,

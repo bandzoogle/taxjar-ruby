@@ -1,11 +1,21 @@
 require 'addressable/uri'
-require 'http'
+require 'uri'
+require 'net/http'
+require 'net/https'
 
 module Taxjar
   module API
     class Request
       DEFAULT_API_URL = 'https://api.taxjar.com'
       SANDBOX_API_URL = 'https://api.sandbox.taxjar.com'
+
+      VERB_MAP = {
+        :get    => Net::HTTP::Get,
+        :patch => Net::HTTP::Patch,
+        :post   => Net::HTTP::Post,
+        :put    => Net::HTTP::Put,
+        :delete => Net::HTTP::Delete
+      }
 
       attr_reader :client, :uri, :headers, :request_method, :path, :object_key, :options
 
@@ -22,15 +32,39 @@ module Taxjar
         set_request_headers(client.headers || {})
         @object_key = object_key
         @options = options
-        set_http_timeout
       end
 
       def perform
-        options_key = @request_method == :get ? :params : :json
-        response = HTTP.timeout(@http_timeout).headers(headers)
-          .request(request_method, uri.to_s, options_key => @options)
-        response_body = symbolize_keys!(response.parse)
-        fail_or_return_response_body(response.code, response_body)
+        uri = URI.parse(@uri.to_s)
+        http = Net::HTTP.new(uri.host, uri.port)
+        http.use_ssl = true #@config.scheme == "https"
+
+        if @options[:timeout].to_i > 0
+          http.read_timeout = @options[:timeout]
+          http.continue_timeout = @options[:timeout]
+          http.open_timeout = @options[:timeout]
+          http.ssl_timeout = @options[:timeout]
+        end
+
+        path = uri.path
+        if @request_method  == :get && ! @options.empty?
+          encoded = URI.encode_www_form(@options)
+          path = [path, encoded].join("?")
+        end
+
+        request = VERB_MAP[@request_method].new(path)
+        if @request_method != :get
+          request.body = @options.to_json
+        end
+
+        headers.each { |k, v|
+          request[k] = v
+        }
+        request[:host] = uri.host
+
+        response = http.request(request)
+        response_body = symbolize_keys!(JSON.parse(response.body))
+        fail_or_return_response_body(response.code.to_i, response_body)
       end
 
       private
@@ -39,14 +73,9 @@ module Taxjar
           @headers = {}
           @headers[:user_agent] = client.user_agent
           @headers[:authorization] = "Bearer #{client.api_key}"
+          @headers[:connection] = 'close'
+          @headers['Content-Type'] = 'application/json; charset=UTF-8'
           @headers.merge!(custom_headers)
-        end
-
-        def set_http_timeout
-          @http_timeout = {}
-          @http_timeout[:write] = @options[:timeout]
-          @http_timeout[:connect] = @options[:timeout]
-          @http_timeout[:read] = @options[:timeout]
         end
 
         def symbolize_keys!(object)
