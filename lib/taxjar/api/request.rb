@@ -2,6 +2,7 @@ require 'addressable/uri'
 require 'uri'
 require 'net/http'
 require 'net/https'
+require 'json'
 
 module Taxjar
   module API
@@ -30,6 +31,7 @@ module Taxjar
         @base_url = client.api_url ? client.api_url : DEFAULT_API_URL
         @uri = Addressable::URI.parse(@base_url + path)
         set_request_headers(client.headers || {})
+
         @object_key = object_key
         @options = options
       end
@@ -60,10 +62,10 @@ module Taxjar
         headers.each { |k, v|
           request[k] = v
         }
-        request[:host] = uri.host
 
+        # http.set_debug_output($stdout)
         response = http.request(request)
-        body = JSON.parse(response.body) rescue {}
+        body = JSON.parse(response.body)
         response_body = symbolize_keys!(body)
         fail_or_return_response_body(response.code.to_i, response_body)
       end
